@@ -1,0 +1,321 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.20;
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC1155} from "@openzeppelin/contracts/interfaces/IERC1155.sol";
+
+contract TexasHoldem is Ownable {
+
+// -------------------------------------------------------------
+// STORAGE
+// -------------------------------------------------------------
+
+uint public playerCount;
+uint public tableCount;
+
+
+enum TableState {
+        Active,
+        Inactive
+    }  
+
+struct Player {
+    address wallet;
+    uint8[] cards;
+    uint bets;
+    bool isActivePlayer;
+    bool isBlacklisted;
+}
+
+enum PlayerAction {
+        Call,
+        Raise,
+        Check,
+        Fold
+    }
+
+struct Table {
+        TableState state;
+        uint buyInAmount;
+        uint totalAmountinPot; 
+        uint maxPlayers;
+        uint[] players;
+        address[] cardsOnTable;
+        bool isActive;
+        address pot;
+        address winner;
+        IERC20 token;
+        IERC1155 cardsAddress; // the token to be used to play in the table
+    }
+
+    struct Round {
+        bool state; // state of the round, if this is active or not
+        uint turn; // an index on the players array, the player who has the current turn
+        address[] players; // players still playing in the round who have not folded
+        uint dealer; // the amount of chips each player has put in the round. This will be compared with the highestChip to check if the player has to call again or not.
+    }
+
+mapping(uint => Player) public players;
+mapping(uint => Table) public tables;
+mapping(address => bool) public balcklistedAddress;
+// tableId => roundNum => Round
+mapping(uint => mapping(uint => Round)) public rounds;
+
+// -------------------------------------------------------------
+// ERRORS
+// -------------------------------------------------------------
+  
+   error OnlyActivePlayer(string message);
+   error AddressBlacklisted(string message);
+   error PlayerNotDealer(string message);
+   error TableAlreadyClosed(uint tableID);
+   error BidTooLow(string message);
+
+// -------------------------------------------------------------
+// EVENTS
+// -------------------------------------------------------------
+
+   event PlayerCreated(uint playerID);
+   event TableCreated(uint tableID);
+   event TableClosed(address winner, uint amountWon);
+   event PlayerBlacklisted(address wallet);
+   event RoundOpened(uint tableID,uint roundCount);
+   event PlayerCalled(uint playerID);
+   event PlayerRaised(uint playerID);
+   event PlayerChecked(uint playerID);
+   event PlayerFolded(uint playerID);
+   event RewardsTransferred(address player,uint amount);
+
+// -------------------------------------------------------------
+// MODIFIERS
+// -------------------------------------------------------------
+
+modifier onlyActivePlayer(uint playerID){
+    if(!players[playerID].isActivePlayer) revert OnlyActivePlayer("this player is inactive in this round");
+    _;
+}
+
+// -------------------------------------------------------------
+// CONSTRUCTOR
+// -------------------------------------------------------------
+
+constructor(address initialOwner) Ownable(initialOwner){
+}
+    
+
+// -------------------------------------------------------------
+// STATE-MODIFYING FUNCTIONS
+// -------------------------------------------------------------
+
+function createPlayer(address _wallet, uint tableID) external returns(uint) {
+    // registers a player at a table
+    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
+
+    unchecked {
+      playerCount++;
+    }
+    
+    players[playerCount].wallet = _wallet;
+    players[playerCount].isActivePlayer = true;
+ 
+    // add player to table
+    tables[tableID].players.push(playerCount);
+
+   emit PlayerCreated(playerCount);
+}
+
+function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[] memory playerIDs, address _tokenAddress, address _pot, address _cardsAddress) external onlyOwner returns(uint) {
+
+    unchecked {
+      tableCount++;
+    }
+     
+    tables[tableCount].state = _state;
+    tables[tableCount].buyInAmount = _buyInAmount;
+    tables[tableCount].maxPlayers = _maxPlayers;
+    tables[tableCount].pot = _pot;
+    tables[tableCount].token = IERC20(_tokenAddress);
+    tables[tableCount].cardsAddress = IERC1155(_cardsAddress);
+
+    emit TableCreated(tableCount);
+
+    return tableCount;
+}
+
+function openRound(uint tableID, uint playerID) external onlyOwner {
+
+    uint roundCount;
+
+    unchecked {
+        roundCount++;
+    }
+
+    //taking initial bets
+
+    uint[] memory playerIDs = tables[tableID].players;
+
+    // TODO
+    // for (uint i = 0; i < playerIDs.length; i++) { 
+    //     address[] memory playerAddress = players[playerIDs][i].wallet;
+    //      for (uint i = 0; i < playerAddress.length; i++) {
+    //         IERC20(tables[tableID].token).transferFrom(playerAddress[i],pot,tables[tableID].buyInAmount);
+    //      }
+    // }
+
+    // set totalAmountInPot 
+    uint potBalance = IERC20(tables[tableID].token).balanceOf(tables[tableID].pot);
+    tables[tableID].totalAmountinPot = potBalance;
+    
+    if(roundCount == 1) {
+    _dealCards();
+    _dealCommunityCards();
+    }
+
+    if (roundCount > 1) {
+      _addCommunityCard();
+    }
+
+    emit RoundOpened(tableID,roundCount);
+
+}
+
+function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint playerID) external onlyActivePlayer(playerID) {
+    // TODO only player with current turn can take action
+
+    if (action == PlayerAction.Call) {
+    // player puts the amount to what's in the pot already
+    
+    // update totalAmountinPot
+        uint currentAmount = tables[tableID].totalAmountinPot;
+        uint newAmount = currentAmount * 2 ;
+        currentAmount = newAmount;
+
+    // trasfer funds to pot
+      IERC20(tables[tableID].token).transferFrom(players[playerID].wallet,tables[tableID].pot,tables[tableID].totalAmountinPot);
+       emit PlayerCalled(playerID);
+       
+    }
+
+    if (action == PlayerAction.Raise) {
+    // player raises the last highest chip
+    if(raiseAmount < tables[tableID].totalAmountinPot) revert BidTooLow("insufficient bid");
+      
+      // update bets in pot
+        uint currentAmount = tables[tableID].totalAmountinPot;
+        uint newAmount = currentAmount + raiseAmount;
+        currentAmount = newAmount;
+     
+     // transfer funds
+        IERC20(tables[tableID].token).transferFrom(players[playerID].wallet,tables[tableID].pot,raiseAmount);
+        emit PlayerRaised(playerID);
+        
+    }
+
+    if (action == PlayerAction.Check) {
+    // player does nothing
+        emit PlayerChecked(playerID);
+    }
+
+    if (action == PlayerAction.Fold) {
+    // player reveals cards and gets removed from active players
+
+        // TODO revealCards();
+
+        // set player to inactive
+        players[playerID].isActivePlayer = false;
+        emit PlayerFolded(playerID);
+    }
+}
+
+function showdown(uint tableID) external onlyOwner {
+    // all active players reveal their cards
+
+     uint[] memory playerIDs = tables[tableID].players;
+     for (uint i = 0; i < playerIDs.length; i++) {
+        // TODO revealCards(palyerIDs[i]);
+     }
+   
+    uint playerID;
+   // = determineWinner(); TODO - return playerID via this function
+   _closeTable(tableID,playerID);
+}
+
+function determineWinner(uint tableID) external onlyOwner returns (uint){
+    // TODO function that determins the winner and returns playerID
+}
+
+function blacklistPlayer(uint playerID) external onlyOwner{
+    // blacklists a malicious player
+
+    address playerAddress = players[playerID].wallet;
+    if (balcklistedAddress[playerAddress]) revert AddressBlacklisted("address already blacklisted");
+
+    players[playerID].isBlacklisted = true;
+    
+    balcklistedAddress[playerAddress] = true;
+
+    emit PlayerBlacklisted(players[playerID].wallet);
+}
+
+// -------------------------------------------------------------
+// INTERNAL FUNCTIONS
+// -------------------------------------------------------------
+
+   function _dealCards() internal {
+    // TODO
+    // assuming that the cards are NFTs we can integrate Chainlink's VFR function and deal random tokenIDs to each player and send it to their wallet
+    // we would save the corresponding 
+   }
+
+   function _dealCommunityCards() internal {
+    // TODO
+    // assuming that the cards are NFTs we can integrate Chainlink's VFR function deal random cards by a random tokenID to the table
+   }
+
+   function _addCommunityCard() internal {
+    // TODO
+    // assuming that the cards are NFTs we can integrate Chainlink's VFR function and deal a random card by a random tokenID to the table
+   }
+
+   function _revealCards(uint playerID) internal view returns (uint8[] memory cards) {
+    return players[playerID].cards;
+   }
+
+   function _closeTable(uint tableID,uint playerID) internal {
+    if (tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
+
+    // close the table
+    tables[tableID].state = TableState.Inactive;
+    tables[tableID].winner = players[playerID].wallet;
+
+    // reset all players to active
+    uint[] memory playerIDs = tables[tableID].players;
+    for (uint i = 0; i < playerIDs.length; i++) { 
+        _setPlayerToActive(playerIDs[i]);
+    }
+
+     // TODO send cards back to dealer wallet
+
+    // for (uint i = 0; i < playerIDs.length; i++) { 
+    //     IERC1155(tables[tableID].cardsAddress).transferFrom(playerWallets[i],address(this),tokenIDs[i]);
+    // }
+    
+    _sendWinnerRewards(tableID,playerID,tables[tableID].totalAmountinPot);
+    emit TableClosed(tables[tableID].winner,tables[tableID].totalAmountinPot);
+}
+
+function _sendWinnerRewards(uint tableID,uint playerID, uint amount) internal {
+
+     // set totalAmountInPot to 0
+
+     tables[tableID].totalAmountinPot = 0;
+
+     IERC20(tables[tableID].token).transferFrom(players[playerID].wallet,tables[tableID].pot,amount);
+
+     emit RewardsTransferred(players[playerID].wallet,amount);
+}
+
+function _setPlayerToActive(uint playerID) internal {
+    players[playerID].isActivePlayer = true;
+}
+}
