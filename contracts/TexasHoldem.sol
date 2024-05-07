@@ -20,9 +20,8 @@ enum TableState {
     }  
 
 struct Player {
-    address wallet;
-    uint8[] cards;
-    uint bets;
+    address wallet; // players wallet
+    uint8[] cards; // tokenIDs of player's cards
     bool isActivePlayer;
     bool isBlacklisted;
 }
@@ -39,24 +38,24 @@ struct Table {
         uint buyInAmount;
         uint totalAmountinPot; 
         uint maxPlayers;
-        uint[] players;
-        address[] cardsOnTable;
+        uint[] players; // playerIDs of players
+        uint8[] cardsOnTable; // tokenIDs of community cards
         bool isActive;
         address pot;
         address winner;
-        IERC20 token;
-        IERC1155 cardsAddress; // the token to be used to play in the table
+        IERC20 token; // the token to be used to play in the table
+        IERC1155 cardsAddress; // address of the cards NFT contract
     }
 
     struct Round {
         bool state; // state of the round, if this is active or not
         uint turn; // an index on the players array, the player who has the current turn
-        address[] players; // players still playing in the round who have not folded
-        uint dealer; // the amount of chips each player has put in the round. This will be compared with the highestChip to check if the player has to call again or not.
+        uint8[] players; // playersIDs still playing in the round who have not folded
     }
 
 mapping(uint => Player) public players;
 mapping(uint => Table) public tables;
+// player address => bool
 mapping(address => bool) public balcklistedAddress;
 // tableId => roundNum => Round
 mapping(uint => mapping(uint => Round)) public rounds;
@@ -70,6 +69,7 @@ mapping(uint => mapping(uint => Round)) public rounds;
    error PlayerNotDealer(string message);
    error TableAlreadyClosed(uint tableID);
    error BidTooLow(string message);
+   error NoMorePlayers(string message);
 
 // -------------------------------------------------------------
 // EVENTS
@@ -108,8 +108,11 @@ constructor(address initialOwner) Ownable(initialOwner){
 // -------------------------------------------------------------
 
 function createPlayer(address _wallet, uint tableID) external returns(uint) {
-    // registers a player at a table
+    // registers a player at a table with an ID
+    uint[] memory playerArray = tables[tableID].players;
     if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
+    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
+    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
 
     unchecked {
       playerCount++;
@@ -125,6 +128,7 @@ function createPlayer(address _wallet, uint tableID) external returns(uint) {
 }
 
 function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[] memory playerIDs, address _tokenAddress, address _pot, address _cardsAddress) external onlyOwner returns(uint) {
+    // creates a table with an ID
 
     unchecked {
       tableCount++;
@@ -143,14 +147,16 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
 }
 
 function openRound(uint tableID, uint playerID) external onlyOwner {
+    // opens a new round in a game
 
     uint roundCount;
 
     unchecked {
         roundCount++;
     }
-
-    //taking initial bets
+    
+    if(roundCount == 1) {
+            //taking initial bets
 
     uint[] memory playerIDs = tables[tableID].players;
 
@@ -163,10 +169,11 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     // }
 
     // set totalAmountInPot 
+
     uint potBalance = IERC20(tables[tableID].token).balanceOf(tables[tableID].pot);
     tables[tableID].totalAmountinPot = potBalance;
-    
-    if(roundCount == 1) {
+
+    // deal cards to players and place community cards on the table
     _dealCards();
     _dealCommunityCards();
     }
