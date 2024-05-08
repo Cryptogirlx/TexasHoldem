@@ -160,7 +160,9 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
 }
 function createPlayer(address _wallet, uint tableID) external returns(uint) {
     // registers a player at a table with an ID
+    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
     uint[] memory playerArray = tables[tableID].players;
+
   
     
     unchecked {
@@ -175,6 +177,7 @@ function createPlayer(address _wallet, uint tableID) external returns(uint) {
 
    emit PlayerCreated(playerCount);
 }
+
 
 address[] playerAddresses; // declaing storage variable for the function below
 
