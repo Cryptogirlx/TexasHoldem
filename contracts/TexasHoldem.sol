@@ -158,11 +158,10 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
 
     return tableCount;
 }
-
 function createPlayer(address _wallet, uint tableID) external returns(uint) {
     // registers a player at a table with an ID
+    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("cannot register this address");
     uint[] memory playerArray = tables[tableID].players;
-    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
     if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
     if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
 
@@ -179,6 +178,7 @@ function createPlayer(address _wallet, uint tableID) external returns(uint) {
    emit PlayerCreated(playerCount);
 }
 
+
 address[] playerAddresses; // declaing storage variable for the function below
 
 function openRound(uint tableID, uint playerID) external onlyOwner {
@@ -191,13 +191,11 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     }
     
     if(roundCount == 1) {
-            //taking initial bets
+    //taking initial bets
 
     uint[] memory playerIDs = tables[tableID].players;
 
-    // TODO
     for (uint i = 0; i < playerIDs.length; i++) { 
-         
         playerAddresses.push(players[playerIDs[i]].wallet);
          for (uint j = 0; i < playerAddresses.length; j++) {
             IERC20(tables[tableID].token).transferFrom(playerAddresses[i],tables[tableID].pot,tables[tableID].buyInAmount);
@@ -212,6 +210,7 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     // deal cards to players and place community cards on the table
     _dealCards();
     _dealCommunityCards();
+
     }
 
     if (roundCount > 1) {
@@ -262,7 +261,7 @@ function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint 
     if (action == PlayerAction.Fold) {
     // player reveals cards and gets removed from active players
 
-        // TODO revealCards();
+        _revealCards(playerID);
 
         // set player to inactive
         players[playerID].isActivePlayer = false;
@@ -273,9 +272,9 @@ function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint 
 function showdown(uint tableID) external onlyOwner {
     // all active players reveal their cards
 
-     uint[] memory playerIDs = tables[tableID].players;
-     for (uint i = 0; i < playerIDs.length; i++) {
-        // TODO revealCards(palyerIDs[i]);
+     uint[] memory playerIDsAtTable = tables[tableID].players;
+     for (uint i = 0; i < playerIDsAtTable.length; i++) {
+         _revealCards(playerIDsAtTable[i]);
      }
    
     uint playerID;
@@ -382,5 +381,7 @@ function fulfillRandomWords(
         RequestStatus memory request = s_requests[_requestId];
         return (request.fulfilled, request.randomWords);
     }
+
+    
 
 }
