@@ -159,25 +159,25 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
     return tableCount;
 }
 
-function createPlayer(address _wallet, uint tableID) external returns(uint) {
-    // registers a player at a table with an ID
-    uint[] memory playerArray = tables[tableID].players;
-    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
-    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
-    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
+// function createPlayer(address _wallet, uint tableID) external returns(uint) {
+//     // registers a player at a table with an ID
+//     uint[] memory playerArray = tables[tableID].players;
+//     if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
+//     if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
+//     if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
 
-    unchecked {
-      playerCount++;
-    }
+//     unchecked {
+//       playerCount++;
+//     }
     
-    players[playerCount].wallet = _wallet;
-    players[playerCount].isActivePlayer = true;
+//     players[playerCount].wallet = _wallet;
+//     players[playerCount].isActivePlayer = true;
  
-    // add player to table
-    tables[tableID].players.push(playerCount);
+//     // add player to table
+//     tables[tableID].players.push(playerCount);
 
-   emit PlayerCreated(playerCount);
-}
+//    emit PlayerCreated(playerCount);
+// }
 
 address[] playerAddresses; // declaing storage variable for the function below
 
