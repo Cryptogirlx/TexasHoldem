@@ -3,8 +3,10 @@ pragma solidity 0.8.20;
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155} from "@openzeppelin/contracts/interfaces/IERC1155.sol";
+import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
 
-contract TexasHoldem is Ownable {
+contract TexasHoldem is Ownable, VRFConsumerBaseV2 {
 
 // -------------------------------------------------------------
 // STORAGE
@@ -49,7 +51,6 @@ struct Table {
 
     struct Round {
         bool state; // state of the round, if this is active or not
-        uint turn; // an index on the players array, the player who has the current turn
         uint8[] players; // playersIDs still playing in the round who have not folded
     }
 
@@ -59,6 +60,35 @@ mapping(uint => Table) public tables;
 mapping(address => bool) public balcklistedAddress;
 // tableId => roundNum => Round
 mapping(uint => mapping(uint => Round)) public rounds;
+
+// ** CHAINLINK ** //
+
+ struct RequestStatus {
+        bool fulfilled; // whether the request has been successfully fulfilled
+        bool exists; // whether a requestId exists
+        uint256[] randomWords;
+    }
+
+    // Your subscription ID.
+    uint64 immutable s_subscriptionId;
+
+    // past requests Id.
+    uint256[] public requestIds;
+    uint256 public lastRequestId;
+
+    // Goerli 30 gwei Key Hash
+    bytes32 immutable keyHash;
+
+    // Have to calculate something in callback function so set it 1M
+    uint32 callbackGasLimit = 1_000_000;
+
+    uint16 requestConfirmations = 3;
+
+    uint32 numWords = 4;
+    
+    // requestID => requestStatus
+    mapping(uint256 => RequestStatus) public s_requests;
+    VRFCoordinatorV2Interface immutable COORDINATOR;
 
 // -------------------------------------------------------------
 // ERRORS
@@ -70,6 +100,7 @@ mapping(uint => mapping(uint => Round)) public rounds;
    error TableAlreadyClosed(uint tableID);
    error BidTooLow(string message);
    error NoMorePlayers(string message);
+   error OnlyRegisteredPlayer(string message);
 
 // -------------------------------------------------------------
 // EVENTS
@@ -99,7 +130,10 @@ modifier onlyActivePlayer(uint playerID){
 // CONSTRUCTOR
 // -------------------------------------------------------------
 
-constructor(address initialOwner) Ownable(initialOwner){
+constructor(address initialOwner, address _coordinatorAddress,uint64 _subscriptionId,bytes32 _keyHash) Ownable(initialOwner) VRFConsumerBaseV2(_coordinatorAddress) {
+     COORDINATOR = VRFCoordinatorV2Interface(_coordinatorAddress);
+        s_subscriptionId = _subscriptionId;
+        keyHash = _keyHash;
 }
     
 
@@ -187,7 +221,7 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
 }
 
 function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint playerID) external onlyActivePlayer(playerID) {
-    // TODO only player with current turn can take action
+    if(msg.sender != players[playerID].wallet) revert OnlyRegisteredPlayer("");
 
     if (action == PlayerAction.Call) {
     // player puts the amount to what's in the pot already
@@ -325,4 +359,26 @@ function _sendWinnerRewards(uint tableID,uint playerID, uint amount) internal {
 function _setPlayerToActive(uint playerID) internal {
     players[playerID].isActivePlayer = true;
 }
+
+// -------------------------------------------------------------
+// CHAINLINK
+// -------------------------------------------------------------
+
+function fulfillRandomWords(
+        uint256 _requestId,
+        uint256[] memory _randomWords
+    ) internal override {
+        // TODO function to get the random numbers
+    }
+
+      function getRequestStatus(uint256 _requestId)
+        external
+        view
+        returns (bool fulfilled, uint256[] memory randomWords)
+    {
+        require(s_requests[_requestId].exists, "request not found");
+        RequestStatus memory request = s_requests[_requestId];
+        return (request.fulfilled, request.randomWords);
+    }
+
 }
