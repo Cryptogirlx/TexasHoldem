@@ -162,9 +162,9 @@ function createPlayer(address _wallet, uint tableID) external returns(uint) {
     // registers a player at a table with an ID
     if (balcklistedAddress[_wallet]) revert AddressBlacklisted("cannot register this address");
     uint[] memory playerArray = tables[tableID].players;
+    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
+    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
 
-  
-    
     unchecked {
       playerCount++;
     }
