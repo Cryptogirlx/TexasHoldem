@@ -141,26 +141,6 @@ constructor(address initialOwner, address _coordinatorAddress,uint64 _subscripti
 // STATE-MODIFYING FUNCTIONS
 // -------------------------------------------------------------
 
-// function createPlayer(address _wallet, uint tableID) external returns(uint) {
-//     // registers a player at a table with an ID
-//     uint[] memory playerArray = tables[tableID].players;
-//     if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
-//     if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
-//     if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
-
-//     unchecked {
-//       playerCount++;
-//     }
-    
-//     players[playerCount].wallet = _wallet;
-//     players[playerCount].isActivePlayer = true;
- 
-//     // add player to table
-//     tables[tableID].players.push(playerCount);
-
-//    emit PlayerCreated(playerCount);
-// }
-
 function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[] memory playerIDs, address _tokenAddress, address _pot, address _cardsAddress) external onlyOwner returns(uint) {
     // creates a table with an ID
     unchecked {
@@ -179,6 +159,28 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
     return tableCount;
 }
 
+function createPlayer(address _wallet, uint tableID) external returns(uint) {
+    // registers a player at a table with an ID
+    uint[] memory playerArray = tables[tableID].players;
+    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
+    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
+    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
+
+    unchecked {
+      playerCount++;
+    }
+    
+    players[playerCount].wallet = _wallet;
+    players[playerCount].isActivePlayer = true;
+ 
+    // add player to table
+    tables[tableID].players.push(playerCount);
+
+   emit PlayerCreated(playerCount);
+}
+
+address[] playerAddresses; // declaing storage variable for the function below
+
 function openRound(uint tableID, uint playerID) external onlyOwner {
     // opens a new round in a game
 
@@ -194,12 +196,13 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     uint[] memory playerIDs = tables[tableID].players;
 
     // TODO
-    // for (uint i = 0; i < playerIDs.length; i++) { 
-    //     address[] memory playerAddress = players[playerIDs][i].wallet;
-    //      for (uint i = 0; i < playerAddress.length; i++) {
-    //         IERC20(tables[tableID].token).transferFrom(playerAddress[i],pot,tables[tableID].buyInAmount);
-    //      }
-    // }
+    for (uint i = 0; i < playerIDs.length; i++) { 
+         
+        playerAddresses.push(players[playerIDs[i]].wallet);
+         for (uint j = 0; i < playerAddresses.length; j++) {
+            IERC20(tables[tableID].token).transferFrom(playerAddresses[i],tables[tableID].pot,tables[tableID].buyInAmount);
+         }
+    }
 
     // set totalAmountInPot 
 
