@@ -191,13 +191,11 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     }
     
     if(roundCount == 1) {
-            //taking initial bets
+    //taking initial bets
 
     uint[] memory playerIDs = tables[tableID].players;
 
-    // TODO
     for (uint i = 0; i < playerIDs.length; i++) { 
-         
         playerAddresses.push(players[playerIDs[i]].wallet);
          for (uint j = 0; i < playerAddresses.length; j++) {
             IERC20(tables[tableID].token).transferFrom(playerAddresses[i],tables[tableID].pot,tables[tableID].buyInAmount);
@@ -212,6 +210,7 @@ function openRound(uint tableID, uint playerID) external onlyOwner {
     // deal cards to players and place community cards on the table
     _dealCards();
     _dealCommunityCards();
+
     }
 
     if (roundCount > 1) {
@@ -262,7 +261,7 @@ function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint 
     if (action == PlayerAction.Fold) {
     // player reveals cards and gets removed from active players
 
-        // TODO revealCards();
+        _revealCards(playerID);
 
         // set player to inactive
         players[playerID].isActivePlayer = false;
@@ -273,9 +272,9 @@ function playerAction(PlayerAction action, uint raiseAmount, uint tableID, uint 
 function showdown(uint tableID) external onlyOwner {
     // all active players reveal their cards
 
-     uint[] memory playerIDs = tables[tableID].players;
-     for (uint i = 0; i < playerIDs.length; i++) {
-        // TODO revealCards(palyerIDs[i]);
+     uint[] memory playerIDsAtTable = tables[tableID].players;
+     for (uint i = 0; i < playerIDsAtTable.length; i++) {
+         _revealCards(playerIDsAtTable[i]);
      }
    
     uint playerID;
