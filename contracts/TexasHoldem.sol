@@ -141,34 +141,33 @@ constructor(address initialOwner, address _coordinatorAddress,uint64 _subscripti
 // STATE-MODIFYING FUNCTIONS
 // -------------------------------------------------------------
 
-function createPlayer(address _wallet, uint tableID) external returns(uint) {
-    // registers a player at a table with an ID
-    uint[] memory playerArray = tables[tableID].players;
-    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
-    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
-    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
+// function createPlayer(address _wallet, uint tableID) external returns(uint) {
+//     // registers a player at a table with an ID
+//     uint[] memory playerArray = tables[tableID].players;
+//     if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
+//     if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
+//     if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
 
-    unchecked {
-      playerCount++;
-    }
+//     unchecked {
+//       playerCount++;
+//     }
     
-    players[playerCount].wallet = _wallet;
-    players[playerCount].isActivePlayer = true;
+//     players[playerCount].wallet = _wallet;
+//     players[playerCount].isActivePlayer = true;
  
-    // add player to table
-    tables[tableID].players.push(playerCount);
+//     // add player to table
+//     tables[tableID].players.push(playerCount);
 
-   emit PlayerCreated(playerCount);
-}
+//    emit PlayerCreated(playerCount);
+// }
 
 function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[] memory playerIDs, address _tokenAddress, address _pot, address _cardsAddress) external onlyOwner returns(uint) {
     // creates a table with an ID
-
     unchecked {
       tableCount++;
     }
      
-    tables[tableCount].state = _state;
+    tables[tableCount].state = TableState.Active;
     tables[tableCount].buyInAmount = _buyInAmount;
     tables[tableCount].maxPlayers = _maxPlayers;
     tables[tableCount].pot = _pot;
