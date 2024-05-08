@@ -158,6 +158,23 @@ function createTable(TableState _state,uint _buyInAmount, uint _maxPlayers,uint[
 
     return tableCount;
 }
+function createPlayer(address _wallet, uint tableID) external returns(uint) {
+    // registers a player at a table with an ID
+    uint[] memory playerArray = tables[tableID].players;
+  
+    
+    unchecked {
+      playerCount++;
+    }
+    
+    players[playerCount].wallet = _wallet;
+    players[playerCount].isActivePlayer = true;
+ 
+    // add player to table
+    tables[tableID].players.push(playerCount);
+
+   emit PlayerCreated(playerCount);
+}
 
 address[] playerAddresses; // declaing storage variable for the function below
 
@@ -363,22 +380,6 @@ function fulfillRandomWords(
         return (request.fulfilled, request.randomWords);
     }
 
-    function createPlayer(address _wallet, uint tableID) external returns(uint) {
-    // registers a player at a table with an ID
-    uint[] memory playerArray = tables[tableID].players;
-  
     
-    unchecked {
-      playerCount++;
-    }
-    
-    players[playerCount].wallet = _wallet;
-    players[playerCount].isActivePlayer = true;
- 
-    // add player to table
-    tables[tableID].players.push(playerCount);
-
-   emit PlayerCreated(playerCount);
-}
 
 }
