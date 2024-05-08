@@ -366,10 +366,8 @@ function fulfillRandomWords(
     function createPlayer(address _wallet, uint tableID) external returns(uint) {
     // registers a player at a table with an ID
     uint[] memory playerArray = tables[tableID].players;
-    if (balcklistedAddress[_wallet]) revert AddressBlacklisted("can't register this address");
-    if (playerArray.length > tables[tableID].maxPlayers) revert NoMorePlayers("table reached max players");
-    if(tables[tableID].state == TableState.Inactive) revert TableAlreadyClosed(tableID);
-
+  
+    
     unchecked {
       playerCount++;
     }
